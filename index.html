@@ -20,6 +20,8 @@ input[type=date]{display:block;min-width:0;max-width:100%;min-height:42px;-webki
 input[type=date]::-webkit-date-and-time-value{text-align:left}
 #upd{position:fixed;left:12px;right:12px;bottom:calc(70px + env(safe-area-inset-bottom,0px));background:var(--acc);color:var(--bg);padding:10px 12px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:4;font-weight:600}
 #upd button{background:var(--bg);color:var(--ink);border:0}
+.chart{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px}
+table.t{width:100%;border-collapse:collapse;font-size:13px}table.t th,table.t td{padding:6px 4px;text-align:right;border-bottom:1px solid var(--line)}table.t th:first-child,table.t td:first-child{text-align:left}
 button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:8px 12px;cursor:pointer}
 button.pri{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:600}
 button.del{color:var(--ri)}
@@ -59,10 +61,10 @@ nav button.on{color:var(--acc);box-shadow:inset 0 3px 0 var(--acc)}nav button:di
 textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);padding:8px;font:13px monospace}
 </style></head><body>
 <main id="app"></main>
-<nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button disabled title="Coming in Phase 2">Analytics</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
+<nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button id="t-an" data-act="tab" data-t="an">Analytics</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
 <div id="modal"></div>
 <script>
-const K="moneycal1",APPV="0.3.2",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
+const K="moneycal1",APPV="0.4",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
 const parse=s=>{const a=s.split("-");return[+a[0],+a[1]-1,+a[2]]};
 const toD=s=>{const[a,b,c]=parse(s);return new Date(Date.UTC(a,b,c))};
 const fromD=d=>ds(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
@@ -91,7 +93,7 @@ function occ(e,from,to){const out=[],end=e.end&&e.end<to?e.end:to;if(!e.date)ret
   s=e.repeat==="weekly"?addDays(e.date,7*i):e.repeat==="biweekly"?addDays(e.date,14*i):e.repeat==="monthly"?addMonths(e.date,i,day):addMonths(e.date,12*i,day)}
  return out}
 function all(){const l=S.entries.slice(),m=main();if(m&&+S.pay.amount>0&&S.pay.next)l.push({id:"_pay",virtual:1,type:"income",name:"Paycheck",amount:+S.pay.amount,date:S.pay.next,repeat:S.pay.freq,account:m.id,category:"Pay"});return l}
-function expand(e,from,to){if(e.type==="advance"){const o=[];if(e.date>=from&&e.date<=to)o.push([e.date,{...e,type:"income",tag:"advance"}]);if(e.rdate&&e.rdate>=from&&e.rdate<=to)o.push([e.rdate,{...e,type:"expense",amount:e.repay,tag:"repayment"}]);return o}
+function expand(e,from,to){if(e.type==="advance"){const o=[];if(e.date>=from&&e.date<=to)o.push([e.date,{...e,type:"income",tag:"advance"}]);if(e.rdate&&e.rdate>=from&&e.rdate<=to)o.push([e.rdate,{...e,type:"expense",amount:e.repay,principal:e.amount,tag:"repayment"}]);return o}
  return occ(e,from,to).map(d=>[d,e])}
 function owed(){let t=0;for(const e of S.entries){if(e.type==="advance"){if(e.date<=TODAY&&e.rdate>=TODAY)t+=+e.repay||0}else if(e.type==="bnpl"&&e.count)t+=occ(e,e.date,"2100-01-01").filter(d=>d>=TODAY).length*e.amount}return t}
 function ahead(){const m=main();if(!m||!m.asof||m.balance==="")return null;const to=addDays(TODAY,60),map={};let b=+m.balance||0;
@@ -146,7 +148,29 @@ function renderSet(){let h=`<h1>Settings</h1><h2>Accounts</h2><p class="note">Ma
  <h2>Categories</h2><div class="chips">${S.cats.map((c,i)=>`<span class="chip">${esc(c)}<button data-act="delCat" data-i="${i}" aria-label="Remove ${esc(c)}">×</button></span>`).join("")}</div><div class="f"><input id="newcat" placeholder="New category"><button data-act="addCat">Add category</button></div>
  <h2>Backup</h2><p class="note">Data lives in this browser only. Copy it somewhere safe, or paste a backup to restore.</p><textarea id="bk" aria-label="Backup data"></textarea><div class="hd"><button data-act="exp">Show backup</button><button data-act="imp">Restore from text</button></div><p class="msg" id="bkm"></p><p class="note">App version ${APPV}</p>`;
  return h}
-function render(){document.getElementById("app").innerHTML=tab==="cal"?renderCal():renderSet();document.getElementById("t-cal").className=tab==="cal"?"on":"";document.getElementById("t-set").className=tab==="set"?"on":""}
+function stats(y,m){const f=ds(y,m,1),l=ds(y,m,dim(y,m)),s={inc:0,spend:0,cat:{},adv:0,advN:0,fees:0,bnpl:0};
+ for(const e of all())for(const[d,v]of expand(e,f,l)){
+  if(v.tag==="advance"){s.adv+=v.amount;s.advN++}
+  else if(v.tag==="repayment"){const fee=(v.amount||0)-(v.principal||0);if(fee>0){s.fees+=fee;s.spend+=fee;s.cat["Borrowing fees"]=(s.cat["Borrowing fees"]||0)+fee}}
+  else if(v.type==="income")s.inc+=v.amount;
+  else{s.spend+=v.amount;const c=v.category||"Other";s.cat[c]=(s.cat[c]||0)+v.amount;if(v.type==="bnpl")s.bnpl+=v.amount}}
+ return s}
+function pareto(cat){const a=Object.entries(cat).filter(x=>x[1]>0).sort((x,y)=>y[1]-x[1]);if(!a.length)return'<p class="note" style="margin:6px">No spending on the calendar this month yet.</p>';
+ const tot=a.reduce((t,x)=>t+x[1],0),W=340,H=210,L=44,R=10,T=10,B=64,ph=H-B-T,bw=(W-L-R)/a.length;let cum=0,bars="",pts=[],lab="";
+ a.forEach(([k,v],i)=>{const x=L+i*bw,bh=v/tot*ph;cum+=v;pts.push([(x+bw/2).toFixed(1),(T+ph-cum/tot*ph).toFixed(1)]);
+  bars+=`<rect x="${(x+3).toFixed(1)}" y="${(T+ph-bh).toFixed(1)}" width="${(bw-6).toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="var(--acc)"><title>${esc(k)}: ${fm(v)}</title></rect>`;
+  lab+=`<text transform="translate(${(x+bw/2).toFixed(1)},${T+ph+12}) rotate(-40)" text-anchor="end" font-size="11" fill="currentColor">${esc(k)}</text>`});
+ const y80=T+ph-0.8*ph;
+ return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Pareto chart of spending by category" style="color:var(--ink)"><line x1="${L}" y1="${T+ph}" x2="${W-R}" y2="${T+ph}" stroke="var(--line)"/><line x1="${L}" y1="${y80}" x2="${W-R}" y2="${y80}" stroke="var(--mute)" stroke-dasharray="4 3"/><text x="${L-4}" y="${y80+4}" text-anchor="end" font-size="10" fill="var(--mute)">80%</text><text x="${L-4}" y="${T+8}" text-anchor="end" font-size="10" fill="var(--mute)">${fm(tot).replace(".00","")}</text><text x="${L-4}" y="${T+ph}" text-anchor="end" font-size="10" fill="var(--mute)">$0</text>${bars}<polyline points="${pts.map(p=>p.join(",")).join(" ")}" fill="none" stroke="var(--exp)" stroke-width="2"/>${pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="var(--exp)"/>`).join("")}${lab}</svg>`}
+function renderAn(){const s=stats(vy,vm),mn=(y,m,o)=>new Date(Date.UTC(y,m,1)).toLocaleDateString("en-US",Object.assign({timeZone:"UTC"},o));
+ let h=`<div class="hd"><button data-act="prev" aria-label="Previous month">‹</button><h1>${mn(vy,vm,{month:"long",year:"numeric"})}</h1><button data-act="next" aria-label="Next month">›</button></div>`;
+ h+=`<div class="stats"><div class="st"><small>Money in</small><b class="amt-in">${fm(s.inc)}</b></div><div class="st"><small>Money out</small><b class="amt-ex">${fm(s.spend)}</b></div><div class="st"><small>Net</small><b class="amt-${s.inc-s.spend<0?"ex":"in"}">${fm(s.inc-s.spend)}</b></div><div class="st"><small>Fees and tips paid</small><b>${fm(s.fees)}</b></div></div>`;
+ h+=`<h2>Where the money goes</h2><div class="chart">${pareto(s.cat)}</div><p class="note">Each bar is a category’s share of the month’s spending. The line adds them up, so you can see which few categories make up most of it.</p>`;
+ h+=`<h2>Borrowing</h2><div class="row"><div>Advances taken<small>${s.advN} this month</small></div><b>${fm(s.adv)}</b></div><div class="row"><div>Fees and tips paid</div><b>${fm(s.fees)}</b></div><div class="row"><div>Pay-later payments due</div><b>${fm(s.bnpl)}</b></div><div class="row"><div>Owed to apps today</div><b>${fm(owed())}</b></div>`;
+ h+=`<h2>Last 6 months</h2><div style="overflow-x:auto"><table class="t"><tr><th>Month</th><th>In</th><th>Out</th><th>Advances</th><th>Fees</th></tr>`;
+ for(let i=5;i>=0;i--){let y=vy,m=vm-i;while(m<0){m+=12;y--}const q=stats(y,m);h+=`<tr><td>${mn(y,m,{month:"short",year:"2-digit"})}</td><td>${"$"+sh(q.inc)}</td><td>${"$"+sh(q.spend)}</td><td>${q.advN} (${"$"+sh(q.adv)})</td><td>${fm(q.fees)}</td></tr>`}
+ return h+`</table></div><p class="note">Based on everything on your calendar, planned or already past. Advance repayments count only for the fee or tip, not the borrowed amount.</p>`}
+function render(){document.getElementById("app").innerHTML=tab==="cal"?renderCal():tab==="an"?renderAn():renderSet();document.getElementById("t-cal").className=tab==="cal"?"on":"";document.getElementById("t-an").className=tab==="an"?"on":"";document.getElementById("t-set").className=tab==="set"?"on":""}
 const id=x=>document.getElementById(x).value;
 const act={
  tab(t){tab=t.dataset.t;render();scrollTo(0,0)},
