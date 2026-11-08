@@ -18,6 +18,8 @@ input,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-rad
 .f>*,.acc>*{min-width:0}
 input[type=date]{display:block;min-width:0;max-width:100%;min-height:42px;-webkit-appearance:none;appearance:none;text-align:left}
 input[type=date]::-webkit-date-and-time-value{text-align:left}
+#upd{position:fixed;left:12px;right:12px;bottom:calc(70px + env(safe-area-inset-bottom,0px));background:var(--acc);color:var(--bg);padding:10px 12px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:4;font-weight:600}
+#upd button{background:var(--bg);color:var(--ink);border:0}
 button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:8px 12px;cursor:pointer}
 button.pri{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:600}
 button.del{color:var(--ri)}
@@ -59,7 +61,7 @@ textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8
 <nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button disabled title="Coming in Phase 2">Analytics</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
 <div id="modal"></div>
 <script>
-const K="moneycal1",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
+const K="moneycal1",APPV="0.3",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
 const parse=s=>{const a=s.split("-");return[+a[0],+a[1]-1,+a[2]]};
 const toD=s=>{const[a,b,c]=parse(s);return new Date(Date.UTC(a,b,c))};
 const fromD=d=>ds(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
@@ -167,5 +169,8 @@ document.addEventListener("click",e=>{const t=e.target.closest("[data-act]");if(
 document.addEventListener("change",e=>{const t=e.target;if(t.id==="f-type")applyType();
  if(t.dataset.a!==undefined){const a=S.accounts[+t.dataset.a];a[t.dataset.f]=t.value;if(t.dataset.f==="role"&&t.value==="Main")S.accounts.forEach(x=>{if(x!==a&&x.role==="Main")x.role="Sub"});save();render()}
  else if(t.dataset.k){const p=t.dataset.k.split(".");if(p.length===2)S[p[0]][p[1]]=t.value;else S[p[0]]=t.value;save()}});
-render();
+async function checkUpdate(){try{const r=await fetch(location.pathname+"?c="+Date.now(),{cache:"no-store"});if(!r.ok)return;const m=(await r.text()).match(/APPV="(\d[^"]*)"/);if(m&&m[1]!==APPV)showUpd()}catch(e){}}
+function showUpd(){if(document.getElementById("upd"))return;const d=document.createElement("div");d.id="upd";d.innerHTML='A new version is ready. <button id="updb">Update now</button>';document.body.appendChild(d);document.getElementById("updb").onclick=async()=>{try{await fetch(location.pathname,{cache:"reload"})}catch(e){}location.reload()}}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkUpdate()});
+checkUpdate();render();
 </script></body></html>
