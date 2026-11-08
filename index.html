@@ -62,7 +62,7 @@ textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8
 <nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button disabled title="Coming in Phase 2">Analytics</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
 <div id="modal"></div>
 <script>
-const K="moneycal1",APPV="0.3.1",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
+const K="moneycal1",APPV="0.3.2",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
 const parse=s=>{const a=s.split("-");return[+a[0],+a[1]-1,+a[2]]};
 const toD=s=>{const[a,b,c]=parse(s);return new Date(Date.UTC(a,b,c))};
 const fromD=d=>ds(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
@@ -144,7 +144,7 @@ function renderSet(){let h=`<h1>Settings</h1><h2>Accounts</h2><p class="note">Ma
  h+=`<button data-act="addAcct">Add account</button><h2>Paycheck</h2><div class="acc set"><div><label>How often</label><select data-k="pay.freq">${opts(Object.entries(REP).filter(x=>x[0]!=="none"),S.pay.freq)}</select></div><div><label>Amount</label><input data-k="pay.amount" type="number" inputmode="decimal" step="0.01" value="${S.pay.amount}"></div><div><label>Next payday</label><input data-k="pay.next" type="date" value="${S.pay.next}"></div><div class="note">Goes into the Main account on each payday.</div></div>
  <h2>Safety cushion</h2><div class="acc set"><div><label>Turn days yellow below</label><input data-k="cushion" type="number" inputmode="decimal" step="1" value="${S.cushion}"></div><div class="note">Zero means a day only turns red when it goes negative.</div></div>
  <h2>Categories</h2><div class="chips">${S.cats.map((c,i)=>`<span class="chip">${esc(c)}<button data-act="delCat" data-i="${i}" aria-label="Remove ${esc(c)}">×</button></span>`).join("")}</div><div class="f"><input id="newcat" placeholder="New category"><button data-act="addCat">Add category</button></div>
- <h2>Backup</h2><p class="note">Data lives in this browser only. Copy it somewhere safe, or paste a backup to restore.</p><textarea id="bk" aria-label="Backup data"></textarea><div class="hd"><button data-act="exp">Show backup</button><button data-act="imp">Restore from text</button></div><p class="msg" id="bkm"></p>`;
+ <h2>Backup</h2><p class="note">Data lives in this browser only. Copy it somewhere safe, or paste a backup to restore.</p><textarea id="bk" aria-label="Backup data"></textarea><div class="hd"><button data-act="exp">Show backup</button><button data-act="imp">Restore from text</button></div><p class="msg" id="bkm"></p><p class="note">App version ${APPV}</p>`;
  return h}
 function render(){document.getElementById("app").innerHTML=tab==="cal"?renderCal():renderSet();document.getElementById("t-cal").className=tab==="cal"?"on":"";document.getElementById("t-set").className=tab==="set"?"on":""}
 const id=x=>document.getElementById(x).value;
