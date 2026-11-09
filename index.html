@@ -20,6 +20,9 @@ input[type=date]{display:block;min-width:0;max-width:100%;min-height:42px;-webki
 input[type=date]::-webkit-date-and-time-value{text-align:left}
 #upd{position:fixed;left:12px;right:12px;bottom:calc(70px + env(safe-area-inset-bottom,0px));background:var(--acc);color:var(--bg);padding:10px 12px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:4;font-weight:600}
 #upd button{background:var(--bg);color:var(--ink);border:0}
+.accw{margin-bottom:8px}.accw .acc{margin-bottom:0}
+.arow{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:6px;font-weight:400}
+.arow .an{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.arow .rl{font-size:12px;color:var(--mute);border:1px solid var(--line);border-radius:99px;padding:1px 8px}.arow .cv{color:var(--mute)}
 .chart{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px}
 table.t{width:100%;border-collapse:collapse;font-size:13px}table.t th,table.t td{padding:6px 4px;text-align:right;border-bottom:1px solid var(--line)}table.t th:first-child,table.t td:first-child{text-align:left}
 button{border:1px solid var(--acc);background:var(--card);background:color-mix(in srgb,var(--acc) 16%,var(--card));color:var(--acc);font-weight:600;border-radius:8px;padding:8px 12px;cursor:pointer}
@@ -65,7 +68,7 @@ textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8
 <nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button id="t-an" data-act="tab" data-t="an">Analytics</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
 <div id="modal"></div>
 <script>
-const K="moneycal1",APPV="0.8.1",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
+const K="moneycal1",APPV="0.9",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
 const parse=s=>{const a=s.split("-");return[+a[0],+a[1]-1,+a[2]]};
 const toD=s=>{const[a,b,c]=parse(s);return new Date(Date.UTC(a,b,c))};
 const fromD=d=>ds(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
@@ -82,7 +85,7 @@ const ROLES=["Main","Sub","Savings","Credit","Other"];
 const DEF={accounts:[],cats:["Rent","Utilities","Food","Subscriptions","Fuel","Loan payments","Fun","Other"],cushion:0,pay:{freq:"biweekly",amount:"",next:""},entries:[]};
 function load(){try{const r=localStorage.getItem(K);if(r)return Object.assign(JSON.parse(JSON.stringify(DEF)),JSON.parse(r))}catch(e){}return JSON.parse(JSON.stringify(DEF))}
 function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}
-let S=load(),tab="cal",vy=now.getFullYear(),vm=now.getMonth(),modal=null;
+let S=load(),openA=null,tab="cal",vy=now.getFullYear(),vm=now.getMonth(),modal=null;
 const main=()=>S.accounts.find(a=>a.role==="Main");
 const sgn=e=>e.type==="income"?e.amount:-e.amount;
 const acctName=id=>(S.accounts.find(a=>a.id===id)||{}).name||"No account";
@@ -166,7 +169,9 @@ function typeOpts(sel){const o=(v,l)=>`<option value="${v}" ${v===sel?"selected"
 function applyType(){const t=document.getElementById("f-type");if(!t)return;const y=t.value.split(":")[0],s=(i,on)=>{document.getElementById(i).style.display=on?"":"none"};s("g-bnpl",y==="bnpl");s("g-adv1",y==="advance");s("g-adv2",y==="advance");s("g-rep",y!=="advance");s("g-end",y!=="advance");document.getElementById("l-date").textContent=y==="advance"?"Date it arrives":"Date";document.getElementById("l-amt").textContent=y==="advance"?"Amount you receive":y==="bnpl"?"Each payment":"Amount"}
 function closeModal(){modal=null;document.getElementById("modal").classList.remove("open")}
 function renderSet(){let h=`<h1>Settings</h1><h2>Accounts</h2><p class="note">Mark one account as Main. Only the Main account drives the calendar colors; credit cards count as debt.</p>`;
- h+=S.accounts.map((a,i)=>`<div class="acc"><div><label>Name</label><input data-a="${i}" data-f="name" value="${esc(a.name)}"></div><div><label>Role</label><select data-a="${i}" data-f="role">${opts(ROLES.map(r=>[r,r]),a.role)}</select></div><div><label>Balance</label><input data-a="${i}" data-f="balance" type="number" inputmode="decimal" step="0.01" value="${a.balance}"></div><div><label>Balance as of (end of that day)</label><input data-a="${i}" data-f="asof" type="date" value="${a.asof||""}"></div><div><button class="del" data-act="delAcct" data-i="${i}">Remove account</button></div></div>`).join("");
+ h+=S.accounts.map((a,i)=>{const op=openA===a.id,bal=a.balance===""?"–":fm(+a.balance),
+  head=`<button class="arow" data-act="togA" data-i="${i}" aria-expanded="${op}"><span class="an">${esc(a.name)}</span><span class="rl">${esc(a.role)}</span><b>${bal}</b><span class="cv">${op?"▴":"▾"}</span></button>`;
+  return `<div class="accw">${head}`+(op?`<div class="acc"><div><label>Name</label><input data-a="${i}" data-f="name" value="${esc(a.name)}"></div><div><label>Role</label><select data-a="${i}" data-f="role">${opts(ROLES.map(r=>[r,r]),a.role)}</select></div><div><label>Balance</label><input data-a="${i}" data-f="balance" type="number" inputmode="decimal" step="0.01" value="${a.balance}"></div><div><label>Balance as of (end of that day)</label><input data-a="${i}" data-f="asof" type="date" value="${a.asof||""}"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button data-act="togA" data-i="${i}">Done</button><button class="del" data-act="delAcct" data-i="${i}">Remove account</button></div></div>`:"")+`</div>`}).join("");
  h+=`<button data-act="addAcct">Add account</button><h2>Balance check-in</h2><p class="note">Match the calendar to your bank. Enter your real Main account balance, then see what is due before your next payday.</p><button class="pri" data-act="check">Update balance and plan the pay period</button><h2>Paycheck</h2><div class="acc set"><div><label>How often</label><select data-k="pay.freq">${opts(Object.entries(REP).filter(x=>x[0]!=="none"),S.pay.freq)}</select></div><div><label>Amount</label><input data-k="pay.amount" type="number" inputmode="decimal" step="0.01" value="${S.pay.amount}"></div><div><label>Next payday</label><input data-k="pay.next" type="date" value="${S.pay.next}"></div><div class="note">Goes into the Main account on each payday.</div></div>
  <h2>Safety cushion</h2><div class="acc set"><div><label>Turn days yellow below</label><input data-k="cushion" type="number" inputmode="decimal" step="1" value="${S.cushion}"></div><div class="note">Zero means a day only turns red when it goes negative.</div></div>
  <h2>Categories</h2><div class="chips">${S.cats.map((c,i)=>`<span class="chip">${esc(c)}<button data-act="delCat" data-i="${i}" aria-label="Remove ${esc(c)}">×</button></span>`).join("")}</div><div class="f"><input id="newcat" placeholder="New category"><button data-act="addCat">Add category</button></div>
@@ -208,7 +213,8 @@ const act={
   const e={id:modal.edit||"e"+Date.now(),type:ty,provider:pv,name:id("f-name").trim()||(pv&&pv!=="Other"?pv:"")||id("f-cat")||"Untitled",amount:amt,category:id("f-cat"),account:id("f-acct"),date:id("f-date"),repeat:ty==="advance"?"none":id("f-rep"),end:ty==="advance"?"":id("f-end"),count:ty==="bnpl"?(parseInt(id("f-count"))||""):"",repay:ty==="advance"?(parseFloat(id("f-repay"))||amt):0,rdate:ty==="advance"?id("f-rdate"):""};
   const i=S.entries.findIndex(x=>x.id===e.id);if(i>=0)S.entries[i]=e;else S.entries.push(e);save();closeModal();render()},
  delEntry(){S.entries=S.entries.filter(x=>x.id!==modal.edit);save();closeModal();render()},
- addAcct(){S.accounts.push({id:"a"+Date.now(),name:"New account",role:S.accounts.length?"Sub":"Main",balance:"",asof:TODAY});save();render()},
+ togA(t){const a=S.accounts[+t.dataset.i];openA=openA===a.id?null:a.id;render()},
+ addAcct(){const nid="a"+Date.now();openA=nid;S.accounts.push({id:nid,name:"New account",role:S.accounts.length?"Sub":"Main",balance:"",asof:TODAY});save();render()},
  delAcct(t){S.accounts.splice(+t.dataset.i,1);save();render()},
  addCat(){const v=id("newcat").trim();if(v&&!S.cats.includes(v)){S.cats.push(v);save();render()}},
  delCat(t){S.cats.splice(+t.dataset.i,1);save();render()},
