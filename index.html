@@ -65,10 +65,10 @@ nav button.on{color:var(--acc);box-shadow:inset 0 3px 0 var(--acc)}nav button:di
 textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);padding:8px;font:13px monospace}
 </style></head><body>
 <main id="app"></main>
-<nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button id="t-an" data-act="tab" data-t="an">Analytics</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
+<nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button id="t-an" data-act="tab" data-t="an">Analytics</button><button id="t-debt" data-act="tab" data-t="debt">Debts</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
 <div id="modal"></div>
 <script>
-const K="moneycal1",APPV="0.9",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
+const K="moneycal1",APPV="0.10",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
 const parse=s=>{const a=s.split("-");return[+a[0],+a[1]-1,+a[2]]};
 const toD=s=>{const[a,b,c]=parse(s);return new Date(Date.UTC(a,b,c))};
 const fromD=d=>ds(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
@@ -82,10 +82,10 @@ const nice=s=>toD(s).toLocaleDateString("en-US",{weekday:"short",month:"short",d
 const now=new Date(),TODAY=ds(now.getFullYear(),now.getMonth(),now.getDate());
 const REP={none:"Does not repeat",weekly:"Weekly",biweekly:"Every 2 weeks",twice:"Twice a month (1st & 15th)",monthly:"Monthly",yearly:"Yearly"};
 const ROLES=["Main","Sub","Savings","Credit","Other"];
-const DEF={accounts:[],cats:["Rent","Utilities","Food","Subscriptions","Fuel","Loan payments","Fun","Other"],cushion:0,pay:{freq:"biweekly",amount:"",next:""},entries:[]};
+const DEF={accounts:[],cats:["Rent","Utilities","Food","Subscriptions","Fuel","Loan payments","Fun","Other"],cushion:0,pay:{freq:"biweekly",amount:"",next:""},entries:[],debts:[]};
 function load(){try{const r=localStorage.getItem(K);if(r)return Object.assign(JSON.parse(JSON.stringify(DEF)),JSON.parse(r))}catch(e){}return JSON.parse(JSON.stringify(DEF))}
 function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}
-let S=load(),openA=null,tab="cal",vy=now.getFullYear(),vm=now.getMonth(),modal=null;
+let S=load(),openA=null,openD=null,tab="cal",vy=now.getFullYear(),vm=now.getMonth(),modal=null;
 const main=()=>S.accounts.find(a=>a.role==="Main");
 const sgn=e=>e.type==="income"?e.amount:-e.amount;
 const acctName=id=>(S.accounts.find(a=>a.id===id)||{}).name||"No account";
@@ -96,7 +96,9 @@ function occ(e,from,to){const out=[],end=e.end&&e.end<to?e.end:to;if(!e.date)ret
  while(s<=end&&i<2000&&(!e.count||i<e.count)){if(s>=from)out.push(s);i++;
   s=e.repeat==="weekly"?addDays(e.date,7*i):e.repeat==="biweekly"?addDays(e.date,14*i):e.repeat==="monthly"?addMonths(e.date,i,day):addMonths(e.date,12*i,day)}
  return out}
-function all(){const l=S.entries.slice(),m=main();if(m&&+S.pay.amount>0&&S.pay.next)l.push({id:"_pay",virtual:1,type:"income",name:"Paycheck",amount:+S.pay.amount,date:S.pay.next,repeat:S.pay.freq,account:m.id,category:"Pay"});return l}
+function all(){const l=S.entries.slice(),m=main();if(m&&+S.pay.amount>0&&S.pay.next)l.push({id:"_pay",virtual:1,type:"income",name:"Paycheck",amount:+S.pay.amount,date:S.pay.next,repeat:S.pay.freq,account:m.id,category:"Pay"});
+ for(const d of S.debts||[]){const p=payoff(d,0);if(p&&p.n!==0)l.push({id:"_debt_"+d.id,virtual:1,debt:1,type:"bill",name:d.name+" payment",amount:+d.payment,date:d.due,repeat:d.repeat||"monthly",end:p.date||"",account:d.account||(m?m.id:""),category:"Loan payments"})}
+ return l}
 function expand(e,from,to){if(e.type==="advance"){const o=[];if(e.date>=from&&e.date<=to)o.push([e.date,{...e,type:"income",tag:"advance"}]);if(e.rdate&&e.rdate>=from&&e.rdate<=to)o.push([e.rdate,{...e,type:"expense",amount:e.repay,principal:e.amount,tag:"repayment"}]);return o}
  return occ(e,from,to).map(d=>[d,e])}
 function owed(){let t=0;for(const e of S.entries){if(e.type==="advance"){if(e.date<=TODAY&&e.rdate>=TODAY)t+=+e.repay||0}else if(e.type==="bnpl"&&e.count)t+=occ(e,e.date,"2100-01-01").filter(d=>d>=TODAY).length*e.amount}return t}
@@ -121,6 +123,24 @@ function renderCheck(){const m=main();if(!m)return'<div class="hd"><h1>Payday ch
   return `<div class="hd"><h1>Next pay period</h1><button data-act="close">Close</button></div><p class="note">${s&&s.pay?"Until payday on "+nice(s.pay):"The next two weeks"}</p><div class="stats"><div class="st"><small>Safe to spend</small><b class="${s&&s.amt<0?"amt-ex":"amt-in"}">${s?fm(s.amt):"–"}</b></div><div class="st"><small>Due before payday</small><b>${fm(tot)}</b>${bor>0?"<small>"+fm(bor)+" is repaying apps</small>":""}</div></div>`+(it.length?it.map(x=>`<div class="row"><div>${esc(x[1].name)}<small>${nice(x[0])}${x[1].tag?" · "+x[1].tag:""}</small></div><b class="amt-ex">${fm(x[1].amount)}</b></div>`).join(""):'<p class="note">Nothing due before your next payday.</p>')+`<p class="note">Keep your spending under the safe-to-spend figure and you won’t need an advance.</p>`}
  const sm=sim(),td=sm&&sm[0]&&sm[0][0]===TODAY?sm[0][1]:+m.balance||0;
  return `<div class="hd"><h1>Payday check-in</h1><button data-act="close">Close</button></div><p class="note">Open your bank app and enter what’s in your Main account (${esc(m.name)}) right now, after any paycheck that has landed. This keeps the calendar matched to reality.</p><label class="note" for="k-bal">Main account balance now</label><input id="k-bal" type="number" inputmode="decimal" step="0.01" value="${td.toFixed(2)}"><p class="msg" id="k-msg"></p><div class="hd"><button class="pri" data-act="saveCheck">Save and plan the pay period</button><button data-act="close">Skip</button></div>`}
+const PER={weekly:52,biweekly:26,twice:24,monthly:12,yearly:1},my=s=>toD(s).toLocaleDateString("en-US",{month:"short",year:"numeric",timeZone:"UTC"});
+function sched(d,from){return occ({date:d.due,repeat:d.repeat||"monthly"},from,"2100-01-01")}
+function debtNow(d){let b=+d.balance||0;const r=(+d.apr||0)/100/PER[d.repeat||"monthly"],pay=+d.payment||0;if(!d.due||!(pay>0))return b;for(const dt of sched(d,addDays(d.asof||TODAY,1))){if(dt>TODAY||b<=0)break;b=Math.max(0,b*(1+r)-pay)}return b}
+function payoff(d,x){const b0=debtNow(d),r=(+d.apr||0)/100/PER[d.repeat||"monthly"],pay=(+d.payment||0)+(+x||0);if(!d.due||!(pay>0))return null;if(b0<=0)return{n:0,int:0,date:TODAY};if(b0*r>=pay)return{never:1};let b=b0,n=0,int=0;for(const dt of sched(d,addDays(TODAY,1))){const i=b*r;int+=i;n++;if(b+i<=pay)return{n,int,date:dt};b=b+i-pay}return{n,int,date:null}}
+function debtForm(d,i){return `<div class="acc" style="margin-top:8px"><div><label>Name</label><input data-d="${i}" data-f="name" value="${esc(d.name)}"></div><div><label>Type</label><select data-d="${i}" data-f="type">${opts(["Auto loan","Credit card","Personal loan","Student loan","Other"].map(x=>[x,x]),d.type)}</select></div><div><label>Balance</label><input data-d="${i}" data-f="balance" type="number" inputmode="decimal" step="0.01" value="${d.balance}"></div><div><label>Balance as of</label><input data-d="${i}" data-f="asof" type="date" value="${d.asof||""}"></div><div><label>Interest rate (APR %)</label><input data-d="${i}" data-f="apr" type="number" inputmode="decimal" step="0.01" value="${d.apr}"></div><div><label>Payment amount</label><input data-d="${i}" data-f="payment" type="number" inputmode="decimal" step="0.01" value="${d.payment}"></div><div><label>Next due date</label><input data-d="${i}" data-f="due" type="date" value="${d.due||""}"></div><div><label>How often</label><select data-d="${i}" data-f="repeat">${opts([["monthly","Monthly"],["biweekly","Every 2 weeks"],["twice","Twice a month (1st & 15th)"],["weekly","Weekly"]],d.repeat||"monthly")}</select></div><div><label>Paid from</label><select data-d="${i}" data-f="account">${opts(S.accounts.map(a=>[a.id,a.name]),d.account)}</select></div><div><label>Original amount (optional)</label><input data-d="${i}" data-f="orig" type="number" inputmode="decimal" step="0.01" value="${d.orig||""}"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button data-act="togD" data-i="${i}">Done</button><button class="del" data-act="delDebt" data-i="${i}">Remove debt</button></div></div>`}
+function renderDebts(){const D=S.debts||[];let tot=0,mo=0;D.forEach(d=>{tot+=debtNow(d);mo+=(+d.payment||0)*PER[d.repeat||"monthly"]/12});
+ let h=`<h1>Debts</h1><div class="stats"><div class="st"><small>Total owed</small><b class="amt-ex">${fm(tot)}</b></div><div class="st"><small>Payments per month</small><b>${fm(mo)}</b></div></div>`;
+ if(!D.length)h+=`<div class="empty"><b>Track a loan or card balance.</b><p class="note">Add your auto loan with its balance, interest rate and payment. The payments land on the calendar by themselves, and you can see when it will be paid off.</p></div>`;
+ h+=D.map((d,i)=>{const now=debtNow(d),p=payoff(d,0),nx=d.due&&+d.payment>0?sched(d,TODAY)[0]:null,og=+d.orig>0?Math.min(100,Math.max(0,(1-now/(+d.orig))*100)):null,acc=S.accounts.find(a=>a.id===d.account);
+  let c=`<div class="chart"><div class="hd" style="margin:0 0 6px"><div><b>${esc(d.name)}</b><small class="note" style="display:block">${esc(d.type)}${+d.apr>0?" · "+d.apr+"% APR":""}</small></div><b class="amt-ex" style="font-size:18px">${fm(now)}</b></div>`;
+  if(og!==null)c+=`<div style="height:8px;background:var(--line);border-radius:99px;overflow:hidden"><div style="height:100%;width:${og.toFixed(0)}%;background:var(--inc)"></div></div><p class="note" style="margin:4px 0 8px">${og.toFixed(0)}% paid off</p>`;
+  c+=`<div class="row"><div>Next payment<small>${nx?nice(nx)+(acc?" · from "+esc(acc.name):""):"Add a payment and due date"}</small></div><b>${+d.payment>0?fm(+d.payment):"–"}</b></div>`;
+  c+=`<div class="row"><div>Paid off<small>${p?(p.never?"The payment doesn’t cover the interest":p.n===0?"Paid off":p.date?p.n+" payments left":"More than 40 years away"):"Add a payment and due date"}</small></div><b>${p&&!p.never&&p.date?my(p.date):"–"}</b></div>`;
+  if(p&&!p.never&&p.n>0)c+=`<div class="row"><div>Interest still to pay</div><b>${fm(p.int)}</b></div>`;
+  c+=`<div class="f"><div><label for="x-${i}">What if I pay extra each time?</label><input id="x-${i}" type="number" inputmode="decimal" step="1" min="0" placeholder="Extra amount"></div><div style="align-self:end"><button data-act="what" data-i="${i}">See the effect</button></div></div><div id="w-${i}"></div>`;
+  c+=openD===d.id?debtForm(d,i):`<div class="hd" style="margin-top:8px"><button data-act="togD" data-i="${i}">Edit</button></div>`;
+  return c+`</div>`}).join("");
+ return h+`<div class="hd"><button class="pri" data-act="addDebt">Add debt</button></div><p class="note">Loan payments are added to your calendar as bills in the Loan payments category and stop when the debt is paid off.</p>`}
 function warn(){const f=ahead();return f?`<div class="warn">Heads up: your Main account is projected to be ${fm(-f.b)} short on ${nice(f.d)}. Cover that gap before then so you don’t need an advance.</div>`:`<div class="okb">No shortfall projected in the next 60 days.</div>`}
 function calData(){const first=ds(vy,vm,1),last=ds(vy,vm,dim(vy,vm)),m=main(),asof=m&&m.asof&&m.balance!==""?m.asof:null,from=asof&&asof<first?asof:first,map={},eod={};
  for(const e of all())for(const[d,v]of expand(e,from,last))(map[d]=map[d]||[]).push(v);
@@ -148,7 +168,7 @@ function renderDay(){const k=modal.date,D=calData(),es=D.map[k]||[],m=main(),b=D
  const ed=modal.edit?S.entries.find(e=>e.id===modal.edit):null,v=ed||{type:"expense",name:"",amount:"",category:S.cats[0]||"",account:m?m.id:(S.accounts[0]||{}).id||"",date:k,repeat:"none",end:"",count:"",repay:"",rdate:""};
  let h=`<div class="hd"><h1>${nice(k)}</h1><button data-act="close">Close</button></div>`;
  if(b!==undefined)h+=`<p class="note">Main account at end of day: <b class="amt-${b<0?"ex":"in"}">${fm(b)}</b>${owedAt(k)>0?`<br>After repaying apps: <b class="amt-${b-owedAt(k)<0?"ex":"in"}">${fm(b-owedAt(k))}</b>`:""}</p>`;
- h+=es.length?es.map(e=>`<div class="row"><div><b>${esc(e.name)}</b><small>${esc(e.category)} · ${esc(acctName(e.account))}${e.provider&&e.provider!=="Other"?" · "+e.provider:""}${e.tag?" · "+e.tag:""}${e.type==="bnpl"?" · pay-later":""}${e.repeat&&e.repeat!=="none"?" · "+REP[e.repeat]:""}${m&&e.account!==m.id?" · not in Main":""}${e.virtual?" · from Settings":""}</small></div><div style="text-align:right"><span class="amt-${e.type==="income"?"in":"ex"}">${e.type==="income"?"+":"-"}${fm(e.amount)}</span>${e.virtual?"":`<br><button data-act="edit" data-id="${e.id}">Edit</button>`}</div></div>`).join(""):`<p class="note">Nothing on this day yet.</p>`;
+ h+=es.length?es.map(e=>`<div class="row"><div><b>${esc(e.name)}</b><small>${esc(e.category)} · ${esc(acctName(e.account))}${e.provider&&e.provider!=="Other"?" · "+e.provider:""}${e.tag?" · "+e.tag:""}${e.type==="bnpl"?" · pay-later":""}${e.repeat&&e.repeat!=="none"?" · "+REP[e.repeat]:""}${m&&e.account!==m.id?" · not in Main":""}${e.virtual?(e.debt?" · from Debts":" · from Settings"):""}</small></div><div style="text-align:right"><span class="amt-${e.type==="income"?"in":"ex"}">${e.type==="income"?"+":"-"}${fm(e.amount)}</span>${e.virtual?"":`<br><button data-act="edit" data-id="${e.id}">Edit</button>`}</div></div>`).join(""):`<p class="note">Nothing on this day yet.</p>`;
  h+=`<h2>${ed?"Edit entry":"Add to this day"}</h2><div class="f">
  <div><label for="f-type">Type</label><select id="f-type">${typeOpts(v.type==="bnpl"||v.type==="advance"?v.type+":"+(v.provider||"Other"):v.type)}</select></div>
  <div><label for="f-amt" id="l-amt">Amount</label><input id="f-amt" type="number" inputmode="decimal" step="0.01" min="0" value="${v.amount}"></div>
@@ -199,7 +219,7 @@ function renderAn(){const s=stats(vy,vm),mn=(y,m,o)=>new Date(Date.UTC(y,m,1)).t
  h+=`<h2>Last 6 months</h2><div style="overflow-x:auto"><table class="t"><tr><th>Month</th><th>In</th><th>Out</th><th>Advances</th><th>Fees</th></tr>`;
  for(let i=5;i>=0;i--){let y=vy,m=vm-i;while(m<0){m+=12;y--}const q=stats(y,m);h+=`<tr><td>${mn(y,m,{month:"short",year:"2-digit"})}</td><td>${"$"+sh(q.inc)}</td><td>${"$"+sh(q.spend)}</td><td>${q.advN} (${"$"+sh(q.adv)})</td><td>${fm(q.fees)}</td></tr>`}
  return h+`</table></div><p class="note">Based on everything on your calendar, planned or already past. Advance repayments count only for the fee or tip, not the borrowed amount.</p>`}
-function render(){document.getElementById("app").innerHTML=tab==="cal"?renderCal():tab==="an"?renderAn():renderSet();document.getElementById("t-cal").className=tab==="cal"?"on":"";document.getElementById("t-an").className=tab==="an"?"on":"";document.getElementById("t-set").className=tab==="set"?"on":""}
+function render(){document.getElementById("app").innerHTML=tab==="cal"?renderCal():tab==="an"?renderAn():tab==="debt"?renderDebts():renderSet();["cal","an","debt","set"].forEach(k=>{document.getElementById("t-"+k).className=tab===k?"on":""})}
 const id=x=>document.getElementById(x).value;
 const act={
  tab(t){tab=t.dataset.t;render();scrollTo(0,0)},
@@ -213,6 +233,13 @@ const act={
   const e={id:modal.edit||"e"+Date.now(),type:ty,provider:pv,name:id("f-name").trim()||(pv&&pv!=="Other"?pv:"")||id("f-cat")||"Untitled",amount:amt,category:id("f-cat"),account:id("f-acct"),date:id("f-date"),repeat:ty==="advance"?"none":id("f-rep"),end:ty==="advance"?"":id("f-end"),count:ty==="bnpl"?(parseInt(id("f-count"))||""):"",repay:ty==="advance"?(parseFloat(id("f-repay"))||amt):0,rdate:ty==="advance"?id("f-rdate"):""};
   const i=S.entries.findIndex(x=>x.id===e.id);if(i>=0)S.entries[i]=e;else S.entries.push(e);save();closeModal();render()},
  delEntry(){S.entries=S.entries.filter(x=>x.id!==modal.edit);save();closeModal();render()},
+ togD(t){const d=S.debts[+t.dataset.i];openD=openD===d.id?null:d.id;render()},
+ addDebt(){const m=main(),id="d"+Date.now();S.debts.push({id,name:"Auto loan",type:"Auto loan",balance:"",asof:TODAY,apr:"",payment:"",due:"",repeat:"monthly",account:m?m.id:"",orig:""});openD=id;save();render()},
+ delDebt(t){S.debts.splice(+t.dataset.i,1);openD=null;save();render()},
+ what(t){const i=+t.dataset.i,d=S.debts[i],x=parseFloat(document.getElementById("x-"+i).value)||0,o=document.getElementById("w-"+i),a=payoff(d,0),b=payoff(d,x);
+  if(!a||a.never||!b||b.never){o.innerHTML='<p class="msg">Add the payment, due date and interest rate first. The payment has to cover the interest.</p>';return}
+  if(!(x>0)){o.innerHTML='<p class="msg">Enter an extra amount to try.</p>';return}
+  o.innerHTML=`<p class="note"><b class="amt-in">Paying ${fm(x)} extra each time</b> pays it off ${b.date?my(b.date):"sooner"} instead of ${a.date?my(a.date):"later"}, which is ${a.n-b.n} payments sooner and saves ${fm(a.int-b.int)} in interest.</p>`},
  togA(t){const a=S.accounts[+t.dataset.i];openA=openA===a.id?null:a.id;render()},
  addAcct(){const nid="a"+Date.now();openA=nid;S.accounts.push({id:nid,name:"New account",role:S.accounts.length?"Sub":"Main",balance:"",asof:TODAY});save();render()},
  delAcct(t){S.accounts.splice(+t.dataset.i,1);save();render()},
@@ -229,6 +256,7 @@ const act={
 document.addEventListener("click",e=>{const t=e.target.closest("[data-act]");if(t&&act[t.dataset.act])act[t.dataset.act](t);else if(e.target.id==="modal")closeModal()});
 document.addEventListener("change",e=>{const t=e.target;if(t.id==="f-type")applyType();
  if(t.dataset.a!==undefined){const a=S.accounts[+t.dataset.a];a[t.dataset.f]=t.value;if(t.dataset.f==="role"&&t.value==="Main")S.accounts.forEach(x=>{if(x!==a&&x.role==="Main")x.role="Sub"});save();render()}
+ else if(t.dataset.d!==undefined){S.debts[+t.dataset.d][t.dataset.f]=t.value;save();render()}
  else if(t.dataset.k){const p=t.dataset.k.split(".");if(p.length===2)S[p[0]][p[1]]=t.value;else S[p[0]]=t.value;save()}});
 async function checkUpdate(){try{const r=await fetch(location.pathname+"?c="+Date.now(),{cache:"no-store"});if(!r.ok)return;const m=(await r.text()).match(/APPV="(\d[^"]*)"/);if(m&&m[1]!==APPV)showUpd()}catch(e){}}
 function showUpd(){if(document.getElementById("upd"))return;const d=document.createElement("div");d.id="upd";d.innerHTML='A new version is ready. <button id="updb">Update now</button>';document.body.appendChild(d);document.getElementById("updb").onclick=async()=>{try{await fetch(location.pathname,{cache:"reload"})}catch(e){}location.reload()}}
