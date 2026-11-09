@@ -64,7 +64,7 @@ textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8
 <nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button id="t-an" data-act="tab" data-t="an">Analytics</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
 <div id="modal"></div>
 <script>
-const K="moneycal1",APPV="0.5",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
+const K="moneycal1",APPV="0.6",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
 const parse=s=>{const a=s.split("-");return[+a[0],+a[1]-1,+a[2]]};
 const toD=s=>{const[a,b,c]=parse(s);return new Date(Date.UTC(a,b,c))};
 const fromD=d=>ds(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
@@ -100,6 +100,14 @@ function ahead(){const m=main();if(!m||!m.asof||m.balance==="")return null;const
  for(const e of all())for(const[d,v]of expand(e,m.asof,to))(map[d]=map[d]||[]).push(v);
  for(let d=m.asof;d<=to;d=addDays(d,1)){for(const v of map[d]||[])if(v.account===m.id)b+=sgn(v);if(d>=TODAY&&b<0)return{d,b}}return null}
 function owedAt(d){let t=0;for(const e of S.entries){if(e.type==="advance"){if(e.date<=d&&e.rdate>d)t+=+e.repay||0}else if(e.type==="bnpl"&&e.count)t+=occ(e,e.date,"2100-01-01").filter(x=>x>d).length*e.amount}return t}
+function sim(extra){const m=main();if(!m||!m.asof||m.balance==="")return null;const to=addDays(TODAY,90),map={};let b=+m.balance||0;
+ for(const e of all().concat(extra||[]))for(const[d,v]of expand(e,m.asof,to))(map[d]=map[d]||[]).push(v);
+ const out=[];for(let d=m.asof;d<=to;d=addDays(d,1)){for(const v of map[d]||[])if(v.account===m.id)b+=sgn(v);if(d>=TODAY)out.push([d,b])}return out}
+function safe(){const s=sim();if(!s)return null;const p=all().find(e=>e.id==="_pay");let pay=null,end=null;if(p){const o=occ(p,addDays(TODAY,1),addDays(TODAY,90));if(o.length){pay=o[0];end=addDays(o[0],-1)}}
+ if(!end)end=s[Math.min(13,s.length-1)][0];if(end<TODAY)end=TODAY;
+ return{amt:Math.min(...s.filter(x=>x[0]<=end).map(x=>x[1]))-(+S.cushion||0),pay}}
+function safeCard(){const s=safe();if(!s)return"";const n=s.amt;return `<div class="st" style="margin-bottom:10px"><small>Safe to spend until ${s.pay?"payday ("+nice(s.pay)+")":"the next two weeks"}</small><b class="amt-${n<0?"ex":"in"}">${n<0?"Short by "+fm(-n):fm(n)}</b><small>The most you could spend today and still stay ${+S.cushion>0?"above your cushion":"out of the red"}.</small></div>`}
+function checker(){return `<div class="chart"><b>Can I afford it?</b><div class="f"><div><label for="c-amt">Purchase amount</label><input id="c-amt" type="number" inputmode="decimal" step="0.01" min="0"></div><div><label for="c-date">On date</label><input id="c-date" type="date" value="${TODAY}" min="${TODAY}"></div></div><div class="hd" style="margin-top:8px"><button data-act="chk">Check it</button></div><div id="c-out"></div></div>`}
 function warn(){const f=ahead();return f?`<div class="warn">Heads up: your Main account is projected to be ${fm(-f.b)} short on ${nice(f.d)}. Cover that gap before then so you don’t need an advance.</div>`:`<div class="okb">No shortfall projected in the next 60 days.</div>`}
 function calData(){const first=ds(vy,vm,1),last=ds(vy,vm,dim(vy,vm)),m=main(),asof=m&&m.asof&&m.balance!==""?m.asof:null,from=asof&&asof<first?asof:first,map={},eod={};
  for(const e of all())for(const[d,v]of expand(e,from,last))(map[d]=map[d]||[]).push(v);
@@ -111,7 +119,7 @@ function renderCal(){const D=calData(),dow=toD(D.first).getUTCDay(),n=dim(vy,vm)
  let low=null,lowD=null;for(let d=1;d<=n;d++){const k=ds(vy,vm,d);if(D.eod[k]!==undefined&&(low===null||D.eod[k]<low)){low=D.eod[k];lowD=k}}
  let h=`<div class="hd"><button data-act="prev" aria-label="Previous month">‹</button><h1>${title}</h1><button data-act="next" aria-label="Next month">›</button></div>`;
  if(!D.asof)h+=`<div class="empty"><b>Set up your Main account first.</b><p class="note">Add the account you’re paid into and spend from, with its balance and the date it’s accurate as of. The calendar colors use that account only.</p><button class="pri" data-act="tab" data-t="set">Open Settings</button></div>`;
- else{const end=D.eod[D.last];h+=`<div class="stats"><div class="st"><small>End of month</small><b class="amt-${end<0?"ex":"in"}">${end===undefined?"–":fm(end)}</b>${end===undefined||!owedAt(D.last)?"":"<small>After repaying apps: "+fm(end-owedAt(D.last))+"</small>"}</div><div class="st"><small>Lowest point</small><b>${low===null?"–":fm(low)}</b><small>${lowD?nice(lowD):""}</small></div><div class="st"><small>Today</small><b>${D.eod[TODAY]===undefined?"–":fm(D.eod[TODAY])}</b>${D.eod[TODAY]===undefined?"":"<small>After repaying apps: "+fm(D.eod[TODAY]-owed())+"</small>"}</div><div class="st"><small>Owed to apps</small><b class="${owed()>0?"amt-ex":""}">${fm(owed())}</b></div></div>`+warn()}
+ else{const end=D.eod[D.last];h+=`<div class="stats"><div class="st"><small>End of month</small><b class="amt-${end<0?"ex":"in"}">${end===undefined?"–":fm(end)}</b>${end===undefined||!owedAt(D.last)?"":"<small>After repaying apps: "+fm(end-owedAt(D.last))+"</small>"}</div><div class="st"><small>Lowest point</small><b>${low===null?"–":fm(low)}</b><small>${lowD?nice(lowD):""}</small></div><div class="st"><small>Today</small><b>${D.eod[TODAY]===undefined?"–":fm(D.eod[TODAY])}</b>${D.eod[TODAY]===undefined?"":"<small>After repaying apps: "+fm(D.eod[TODAY]-owed())+"</small>"}</div><div class="st"><small>Owed to apps</small><b class="${owed()>0?"amt-ex":""}">${fm(owed())}</b></div></div>`+warn()+safeCard()+checker()}
  h+=`<div class="grid">`+["S","M","T","W","T","F","S"].map(x=>`<div class="dow">${x}</div>`).join("");
  for(let i=0;i<dow;i++)h+=`<div class="day blank"></div>`;
  for(let d=1;d<=n;d++){const k=ds(vy,vm,d),es=D.map[k]||[],b=D.eod[k],m=main();
@@ -189,6 +197,10 @@ const act={
  delAcct(t){S.accounts.splice(+t.dataset.i,1);save();render()},
  addCat(){const v=id("newcat").trim();if(v&&!S.cats.includes(v)){S.cats.push(v);save();render()}},
  delCat(t){S.cats.splice(+t.dataset.i,1);save();render()},
+ chk(){const a=parseFloat(id("c-amt")),d=id("c-date"),o=document.getElementById("c-out"),m=main();
+  if(!(a>0)||!d){o.innerHTML='<p class="msg">Enter an amount and a date.</p>';return}
+  const base=sim(),alt=sim([{id:"_x",type:"expense",amount:a,date:d<TODAY?TODAY:d,repeat:"none",account:m.id}]),low=Math.min(...alt.map(x=>x[1])),bl=Math.min(...base.map(x=>x[1])),neg=alt.find(x=>x[1]<0),nb=base.find(x=>x[1]<0);
+  o.innerHTML=neg?(nb?`<p class="msg">You’re already projected to go short, and this ${fm(a)} would make the gap bigger. Lowest point: ${fm(low)}.</p>`:`<p class="msg">This would put your Main account ${fm(-neg[1])} short on ${nice(neg[0])}. Waiting or skipping it avoids needing to borrow.</p>`):`<p class="note"><b class="amt-in">Affordable.</b> Your lowest balance over the next 90 days would be ${fm(low)} (${fm(bl)} without it).${low<(+S.cushion||0)?" That’s below your safety cushion.":""}</p>`},
  exp(){document.getElementById("bk").value=JSON.stringify(S)},
  imp(){try{const o=JSON.parse(id("bk"));S=Object.assign(JSON.parse(JSON.stringify(DEF)),o);save();render()}catch(e){document.getElementById("bkm").textContent="That text isn’t a valid backup."}}};
 document.addEventListener("click",e=>{const t=e.target.closest("[data-act]");if(t&&act[t.dataset.act])act[t.dataset.act](t);else if(e.target.id==="modal")closeModal()});
