@@ -64,7 +64,7 @@ textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8
 <nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button id="t-an" data-act="tab" data-t="an">Analytics</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
 <div id="modal"></div>
 <script>
-const K="moneycal1",APPV="0.4",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
+const K="moneycal1",APPV="0.5",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
 const parse=s=>{const a=s.split("-");return[+a[0],+a[1]-1,+a[2]]};
 const toD=s=>{const[a,b,c]=parse(s);return new Date(Date.UTC(a,b,c))};
 const fromD=d=>ds(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
@@ -99,6 +99,7 @@ function owed(){let t=0;for(const e of S.entries){if(e.type==="advance"){if(e.da
 function ahead(){const m=main();if(!m||!m.asof||m.balance==="")return null;const to=addDays(TODAY,60),map={};let b=+m.balance||0;
  for(const e of all())for(const[d,v]of expand(e,m.asof,to))(map[d]=map[d]||[]).push(v);
  for(let d=m.asof;d<=to;d=addDays(d,1)){for(const v of map[d]||[])if(v.account===m.id)b+=sgn(v);if(d>=TODAY&&b<0)return{d,b}}return null}
+function owedAt(d){let t=0;for(const e of S.entries){if(e.type==="advance"){if(e.date<=d&&e.rdate>d)t+=+e.repay||0}else if(e.type==="bnpl"&&e.count)t+=occ(e,e.date,"2100-01-01").filter(x=>x>d).length*e.amount}return t}
 function warn(){const f=ahead();return f?`<div class="warn">Heads up: your Main account is projected to be ${fm(-f.b)} short on ${nice(f.d)}. Cover that gap before then so you don’t need an advance.</div>`:`<div class="okb">No shortfall projected in the next 60 days.</div>`}
 function calData(){const first=ds(vy,vm,1),last=ds(vy,vm,dim(vy,vm)),m=main(),asof=m&&m.asof&&m.balance!==""?m.asof:null,from=asof&&asof<first?asof:first,map={},eod={};
  for(const e of all())for(const[d,v]of expand(e,from,last))(map[d]=map[d]||[]).push(v);
@@ -110,7 +111,7 @@ function renderCal(){const D=calData(),dow=toD(D.first).getUTCDay(),n=dim(vy,vm)
  let low=null,lowD=null;for(let d=1;d<=n;d++){const k=ds(vy,vm,d);if(D.eod[k]!==undefined&&(low===null||D.eod[k]<low)){low=D.eod[k];lowD=k}}
  let h=`<div class="hd"><button data-act="prev" aria-label="Previous month">‹</button><h1>${title}</h1><button data-act="next" aria-label="Next month">›</button></div>`;
  if(!D.asof)h+=`<div class="empty"><b>Set up your Main account first.</b><p class="note">Add the account you’re paid into and spend from, with its balance and the date it’s accurate as of. The calendar colors use that account only.</p><button class="pri" data-act="tab" data-t="set">Open Settings</button></div>`;
- else{const end=D.eod[D.last];h+=`<div class="stats"><div class="st"><small>End of month</small><b class="amt-${end<0?"ex":"in"}">${end===undefined?"–":fm(end)}</b></div><div class="st"><small>Lowest point</small><b>${low===null?"–":fm(low)}</b><small>${lowD?nice(lowD):""}</small></div><div class="st"><small>Today</small><b>${D.eod[TODAY]===undefined?"–":fm(D.eod[TODAY])}</b>${D.eod[TODAY]===undefined?"":"<small>After repaying apps: "+fm(D.eod[TODAY]-owed())+"</small>"}</div><div class="st"><small>Owed to apps</small><b class="${owed()>0?"amt-ex":""}">${fm(owed())}</b></div></div>`+warn()}
+ else{const end=D.eod[D.last];h+=`<div class="stats"><div class="st"><small>End of month</small><b class="amt-${end<0?"ex":"in"}">${end===undefined?"–":fm(end)}</b>${end===undefined||!owedAt(D.last)?"":"<small>After repaying apps: "+fm(end-owedAt(D.last))+"</small>"}</div><div class="st"><small>Lowest point</small><b>${low===null?"–":fm(low)}</b><small>${lowD?nice(lowD):""}</small></div><div class="st"><small>Today</small><b>${D.eod[TODAY]===undefined?"–":fm(D.eod[TODAY])}</b>${D.eod[TODAY]===undefined?"":"<small>After repaying apps: "+fm(D.eod[TODAY]-owed())+"</small>"}</div><div class="st"><small>Owed to apps</small><b class="${owed()>0?"amt-ex":""}">${fm(owed())}</b></div></div>`+warn()}
  h+=`<div class="grid">`+["S","M","T","W","T","F","S"].map(x=>`<div class="dow">${x}</div>`).join("");
  for(let i=0;i<dow;i++)h+=`<div class="day blank"></div>`;
  for(let d=1;d<=n;d++){const k=ds(vy,vm,d),es=D.map[k]||[],b=D.eod[k],m=main();
@@ -122,7 +123,7 @@ function opts(list,sel){return list.map(x=>`<option value="${esc(x[0])}" ${x[0]=
 function renderDay(){const k=modal.date,D=calData(),es=D.map[k]||[],m=main(),b=D.eod[k];
  const ed=modal.edit?S.entries.find(e=>e.id===modal.edit):null,v=ed||{type:"expense",name:"",amount:"",category:S.cats[0]||"",account:m?m.id:(S.accounts[0]||{}).id||"",date:k,repeat:"none",end:"",count:"",repay:"",rdate:""};
  let h=`<div class="hd"><h1>${nice(k)}</h1><button data-act="close">Close</button></div>`;
- if(b!==undefined)h+=`<p class="note">Main account at end of day: <b class="amt-${b<0?"ex":"in"}">${fm(b)}</b></p>`;
+ if(b!==undefined)h+=`<p class="note">Main account at end of day: <b class="amt-${b<0?"ex":"in"}">${fm(b)}</b>${owedAt(k)>0?`<br>After repaying apps: <b class="amt-${b-owedAt(k)<0?"ex":"in"}">${fm(b-owedAt(k))}</b>`:""}</p>`;
  h+=es.length?es.map(e=>`<div class="row"><div><b>${esc(e.name)}</b><small>${esc(e.category)} · ${esc(acctName(e.account))}${e.tag?" · "+e.tag:""}${e.type==="bnpl"?" · pay-later":""}${e.repeat&&e.repeat!=="none"?" · "+REP[e.repeat]:""}${m&&e.account!==m.id?" · not in Main":""}${e.virtual?" · from Settings":""}</small></div><div style="text-align:right"><span class="amt-${e.type==="income"?"in":"ex"}">${e.type==="income"?"+":"-"}${fm(e.amount)}</span>${e.virtual?"":`<br><button data-act="edit" data-id="${e.id}">Edit</button>`}</div></div>`).join(""):`<p class="note">Nothing on this day yet.</p>`;
  h+=`<h2>${ed?"Edit entry":"Add to this day"}</h2><div class="f">
  <div><label for="f-type">Type</label><select id="f-type">${opts([["income","Income"],["bill","Bill"],["expense","Expense"],["bnpl","Pay-later payment (Klarna, Affirm)"],["advance","Cash advance (Dave, Tilt, EarnIn, MoneyLion)"]],v.type)}</select></div>
