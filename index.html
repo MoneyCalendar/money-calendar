@@ -64,7 +64,7 @@ textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8
 <nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button id="t-an" data-act="tab" data-t="an">Analytics</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
 <div id="modal"></div>
 <script>
-const K="moneycal1",APPV="0.6",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
+const K="moneycal1",APPV="0.6.1",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
 const parse=s=>{const a=s.split("-");return[+a[0],+a[1]-1,+a[2]]};
 const toD=s=>{const[a,b,c]=parse(s);return new Date(Date.UTC(a,b,c))};
 const fromD=d=>ds(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
@@ -132,9 +132,9 @@ function renderDay(){const k=modal.date,D=calData(),es=D.map[k]||[],m=main(),b=D
  const ed=modal.edit?S.entries.find(e=>e.id===modal.edit):null,v=ed||{type:"expense",name:"",amount:"",category:S.cats[0]||"",account:m?m.id:(S.accounts[0]||{}).id||"",date:k,repeat:"none",end:"",count:"",repay:"",rdate:""};
  let h=`<div class="hd"><h1>${nice(k)}</h1><button data-act="close">Close</button></div>`;
  if(b!==undefined)h+=`<p class="note">Main account at end of day: <b class="amt-${b<0?"ex":"in"}">${fm(b)}</b>${owedAt(k)>0?`<br>After repaying apps: <b class="amt-${b-owedAt(k)<0?"ex":"in"}">${fm(b-owedAt(k))}</b>`:""}</p>`;
- h+=es.length?es.map(e=>`<div class="row"><div><b>${esc(e.name)}</b><small>${esc(e.category)} · ${esc(acctName(e.account))}${e.tag?" · "+e.tag:""}${e.type==="bnpl"?" · pay-later":""}${e.repeat&&e.repeat!=="none"?" · "+REP[e.repeat]:""}${m&&e.account!==m.id?" · not in Main":""}${e.virtual?" · from Settings":""}</small></div><div style="text-align:right"><span class="amt-${e.type==="income"?"in":"ex"}">${e.type==="income"?"+":"-"}${fm(e.amount)}</span>${e.virtual?"":`<br><button data-act="edit" data-id="${e.id}">Edit</button>`}</div></div>`).join(""):`<p class="note">Nothing on this day yet.</p>`;
+ h+=es.length?es.map(e=>`<div class="row"><div><b>${esc(e.name)}</b><small>${esc(e.category)} · ${esc(acctName(e.account))}${e.provider&&e.provider!=="Other"?" · "+e.provider:""}${e.tag?" · "+e.tag:""}${e.type==="bnpl"?" · pay-later":""}${e.repeat&&e.repeat!=="none"?" · "+REP[e.repeat]:""}${m&&e.account!==m.id?" · not in Main":""}${e.virtual?" · from Settings":""}</small></div><div style="text-align:right"><span class="amt-${e.type==="income"?"in":"ex"}">${e.type==="income"?"+":"-"}${fm(e.amount)}</span>${e.virtual?"":`<br><button data-act="edit" data-id="${e.id}">Edit</button>`}</div></div>`).join(""):`<p class="note">Nothing on this day yet.</p>`;
  h+=`<h2>${ed?"Edit entry":"Add to this day"}</h2><div class="f">
- <div><label for="f-type">Type</label><select id="f-type">${opts([["income","Income"],["bill","Bill"],["expense","Expense"],["bnpl","Pay-later payment (Klarna, Affirm)"],["advance","Cash advance (Dave, Tilt, EarnIn, MoneyLion)"]],v.type)}</select></div>
+ <div><label for="f-type">Type</label><select id="f-type">${typeOpts(v.type==="bnpl"||v.type==="advance"?v.type+":"+(v.provider||"Other"):v.type)}</select></div>
  <div><label for="f-amt" id="l-amt">Amount</label><input id="f-amt" type="number" inputmode="decimal" step="0.01" min="0" value="${v.amount}"></div>
  <div class="w"><label for="f-name">Name</label><input id="f-name" value="${esc(v.name)}" placeholder="Electric bill, groceries, paycheck…"></div>
  <div><label for="f-cat">Category</label><select id="f-cat">${opts(S.cats.map(c=>[c,c]),v.category)}</select></div>
@@ -148,7 +148,9 @@ function renderDay(){const k=modal.date,D=calData(),es=D.map[k]||[],m=main(),b=D
  <p class="msg" id="f-msg"></p><div class="hd"><button class="pri" data-act="saveEntry">${ed?"Save changes":"Add entry"}</button>${ed?`<button class="del" data-act="delEntry">Delete</button>`:""}</div>${ed&&ed.repeat!=="none"?`<p class="note">Changes and deletes apply to every repeat of this entry.</p>`:""}`;
  return h}
 function openModal(){const m=document.getElementById("modal");m.innerHTML=`<div class="sheet" role="dialog" aria-modal="true">${renderDay()}</div>`;m.classList.add("open");applyType()}
-function applyType(){const t=document.getElementById("f-type");if(!t)return;const y=t.value,s=(i,on)=>{document.getElementById(i).style.display=on?"":"none"};s("g-bnpl",y==="bnpl");s("g-adv1",y==="advance");s("g-adv2",y==="advance");s("g-rep",y!=="advance");s("g-end",y!=="advance");document.getElementById("l-date").textContent=y==="advance"?"Date it arrives":"Date";document.getElementById("l-amt").textContent=y==="advance"?"Amount you receive":y==="bnpl"?"Each payment":"Amount"}
+function typeOpts(sel){const o=(v,l)=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`;
+ return o("income","Income")+o("bill","Bill")+o("expense","Expense")+`<optgroup label="Pay-later payment">`+["Klarna","Affirm","Other"].map(p=>o("bnpl:"+p,p==="Other"?"Other pay-later":p)).join("")+`</optgroup><optgroup label="Cash advance">`+["Dave","Tilt","EarnIn","MoneyLion","Other"].map(p=>o("advance:"+p,p==="Other"?"Other cash advance":p)).join("")+`</optgroup>`}
+function applyType(){const t=document.getElementById("f-type");if(!t)return;const y=t.value.split(":")[0],s=(i,on)=>{document.getElementById(i).style.display=on?"":"none"};s("g-bnpl",y==="bnpl");s("g-adv1",y==="advance");s("g-adv2",y==="advance");s("g-rep",y!=="advance");s("g-end",y!=="advance");document.getElementById("l-date").textContent=y==="advance"?"Date it arrives":"Date";document.getElementById("l-amt").textContent=y==="advance"?"Amount you receive":y==="bnpl"?"Each payment":"Amount"}
 function closeModal(){modal=null;document.getElementById("modal").classList.remove("open")}
 function renderSet(){let h=`<h1>Settings</h1><h2>Accounts</h2><p class="note">Mark one account as Main. Only the Main account drives the calendar colors; credit cards count as debt.</p>`;
  h+=S.accounts.map((a,i)=>`<div class="acc"><div><label>Name</label><input data-a="${i}" data-f="name" value="${esc(a.name)}"></div><div><label>Role</label><select data-a="${i}" data-f="role">${opts(ROLES.map(r=>[r,r]),a.role)}</select></div><div><label>Balance</label><input data-a="${i}" data-f="balance" type="number" inputmode="decimal" step="0.01" value="${a.balance}"></div><div><label>Accurate as of</label><input data-a="${i}" data-f="asof" type="date" value="${a.asof||""}"></div><div><button class="del" data-act="delAcct" data-i="${i}">Remove account</button></div></div>`).join("");
@@ -189,8 +191,8 @@ const act={
  saveEntry(){const amt=parseFloat(id("f-amt")),msg=document.getElementById("f-msg");
   if(!(amt>0)){msg.textContent="Enter an amount above 0.";return}
   if(!id("f-date")){msg.textContent="Pick a date.";return}
-  const ty=id("f-type");if(ty==="advance"&&!id("f-rdate")){msg.textContent="Pick the repayment date.";return}
-  const e={id:modal.edit||"e"+Date.now(),type:ty,name:id("f-name").trim()||id("f-cat")||"Untitled",amount:amt,category:id("f-cat"),account:id("f-acct"),date:id("f-date"),repeat:ty==="advance"?"none":id("f-rep"),end:ty==="advance"?"":id("f-end"),count:ty==="bnpl"?(parseInt(id("f-count"))||""):"",repay:ty==="advance"?(parseFloat(id("f-repay"))||amt):0,rdate:ty==="advance"?id("f-rdate"):""};
+  const tv=id("f-type").split(":"),ty=tv[0],pv=tv[1]||"";if(ty==="advance"&&!id("f-rdate")){msg.textContent="Pick the repayment date.";return}
+  const e={id:modal.edit||"e"+Date.now(),type:ty,provider:pv,name:id("f-name").trim()||(pv&&pv!=="Other"?pv:"")||id("f-cat")||"Untitled",amount:amt,category:id("f-cat"),account:id("f-acct"),date:id("f-date"),repeat:ty==="advance"?"none":id("f-rep"),end:ty==="advance"?"":id("f-end"),count:ty==="bnpl"?(parseInt(id("f-count"))||""):"",repay:ty==="advance"?(parseFloat(id("f-repay"))||amt):0,rdate:ty==="advance"?id("f-rdate"):""};
   const i=S.entries.findIndex(x=>x.id===e.id);if(i>=0)S.entries[i]=e;else S.entries.push(e);save();closeModal();render()},
  delEntry(){S.entries=S.entries.filter(x=>x.id!==modal.edit);save();closeModal();render()},
  addAcct(){S.accounts.push({id:"a"+Date.now(),name:"New account",role:S.accounts.length?"Sub":"Main",balance:"",asof:TODAY});save();render()},
