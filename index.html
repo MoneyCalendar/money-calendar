@@ -31,6 +31,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .warn{background:var(--r);color:var(--ri);border-radius:10px;padding:10px;margin-bottom:10px;font-weight:600}.okb{background:var(--g);color:var(--gi);border-radius:10px;padding:10px;margin-bottom:10px}
 .st{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
 .st small{display:block;color:var(--mute);font-size:12px}.st b{font-size:16px}
+.stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}.stats3 .st{padding:6px 8px}.stats3 .st small{font-size:11px;line-height:1.25}.stats3 .st b{font-size:15px}
 .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
 .dow{font-size:12px;color:var(--mute);text-align:center;padding:2px 0}
 .day{min-height:62px;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:4px;text-align:left;display:flex;flex-direction:column;justify-content:space-between;gap:2px}
@@ -64,7 +65,7 @@ textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8
 <nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button id="t-an" data-act="tab" data-t="an">Analytics</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
 <div id="modal"></div>
 <script>
-const K="moneycal1",APPV="0.6.1",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
+const K="moneycal1",APPV="0.7",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
 const parse=s=>{const a=s.split("-");return[+a[0],+a[1]-1,+a[2]]};
 const toD=s=>{const[a,b,c]=parse(s);return new Date(Date.UTC(a,b,c))};
 const fromD=d=>ds(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
@@ -119,13 +120,16 @@ function renderCal(){const D=calData(),dow=toD(D.first).getUTCDay(),n=dim(vy,vm)
  let low=null,lowD=null;for(let d=1;d<=n;d++){const k=ds(vy,vm,d);if(D.eod[k]!==undefined&&(low===null||D.eod[k]<low)){low=D.eod[k];lowD=k}}
  let h=`<div class="hd"><button data-act="prev" aria-label="Previous month">‹</button><h1>${title}</h1><button data-act="next" aria-label="Next month">›</button></div>`;
  if(!D.asof)h+=`<div class="empty"><b>Set up your Main account first.</b><p class="note">Add the account you’re paid into and spend from, with its balance and the date it’s accurate as of. The calendar colors use that account only.</p><button class="pri" data-act="tab" data-t="set">Open Settings</button></div>`;
- else{const end=D.eod[D.last];h+=`<div class="stats"><div class="st"><small>End of month</small><b class="amt-${end<0?"ex":"in"}">${end===undefined?"–":fm(end)}</b>${end===undefined||!owedAt(D.last)?"":"<small>After repaying apps: "+fm(end-owedAt(D.last))+"</small>"}</div><div class="st"><small>Lowest point</small><b>${low===null?"–":fm(low)}</b><small>${lowD?nice(lowD):""}</small></div><div class="st"><small>Today</small><b>${D.eod[TODAY]===undefined?"–":fm(D.eod[TODAY])}</b>${D.eod[TODAY]===undefined?"":"<small>After repaying apps: "+fm(D.eod[TODAY]-owed())+"</small>"}</div><div class="st"><small>Owed to apps</small><b class="${owed()>0?"amt-ex":""}">${fm(owed())}</b></div></div>`+warn()+safeCard()+checker()}
+ else{const end=D.eod[D.last],td=D.eod[TODAY],sf=safe(),ow=owed(),f=ahead();
+   if(f)h+=`<div class="warn">Short by ${fm(-f.b)} on ${nice(f.d)}. Cover it before then so you don’t need an advance.</div>`;
+   h+=`<div class="stats3"><div class="st"><small>Today</small><b class="${td<0?"amt-ex":""}">${td===undefined?"–":fm(td)}</b>${td!==undefined&&ow>0?"<small>After apps: "+fm(td-ow)+"</small>":""}</div><div class="st"><small>Safe to spend</small><b class="${sf&&sf.amt<0?"amt-ex":"amt-in"}">${sf?fm(sf.amt):"–"}</b><small>${sf&&sf.pay?"until "+nice(sf.pay):"next 2 weeks"}</small></div><div class="st"><small>End of month</small><b class="amt-${end<0?"ex":"in"}">${end===undefined?"–":fm(end)}</b>${end!==undefined&&owedAt(D.last)?"<small>After apps: "+fm(end-owedAt(D.last))+"</small>":""}</div></div>`;
+   var det=`<h2>Month details</h2><div class="row"><div>Lowest point<small>${lowD?nice(lowD):""}</small></div><b>${low===null?"–":fm(low)}</b></div><div class="row"><div>Owed to apps<small>Unpaid advances and pay-later payments</small></div><b class="${ow>0?"amt-ex":""}">${fm(ow)}</b></div><p class="note">Safe to spend is the most you could spend today and still stay ${+S.cushion>0?"above your cushion":"out of the red"} until your next payday.</p>`+checker()}
  h+=`<div class="grid">`+["S","M","T","W","T","F","S"].map(x=>`<div class="dow">${x}</div>`).join("");
  for(let i=0;i<dow;i++)h+=`<div class="day blank"></div>`;
  for(let d=1;d<=n;d++){const k=ds(vy,vm,d),es=D.map[k]||[],b=D.eod[k],m=main();
   const hasIn=es.some(e=>e.type==="income"),hasEx=es.some(e=>e.type!=="income");
   h+=`<button class="day ${b===undefined?"":cls(b)} ${k===TODAY?"today":""}" data-act="day" data-d="${k}" aria-label="${nice(k)}${b===undefined?"":", projected "+fm(b)}"><span class="n">${d}</span><span class="dots">${hasIn?'<i class="i-in"></i>':""}${hasEx?'<i class="i-ex"></i>':""}</span><span class="b">${b===undefined?"&nbsp;":sh(b)}</span></button>`}
- h+=`</div><div class="leg"><span><i class="sw" style="background:var(--g)"></i>At or above cushion</span><span><i class="sw" style="background:var(--y)"></i>Below cushion</span><span><i class="sw" style="background:var(--r)"></i>Negative</span><span><i class="sw i-in"></i>Income</span><span><i class="sw i-ex"></i>Bill or expense</span></div><p class="note">Day numbers show the projected Main account balance at the end of each day.</p>`;
+ h+=`</div><div class="leg"><span><i class="sw" style="background:var(--g)"></i>At or above cushion</span><span><i class="sw" style="background:var(--y)"></i>Below cushion</span><span><i class="sw" style="background:var(--r)"></i>Negative</span><span><i class="sw i-in"></i>Income</span><span><i class="sw i-ex"></i>Bill or expense</span></div><p class="note">Day numbers show the projected Main account balance at the end of each day.</p>`;h+=det||"";
  return h}
 function opts(list,sel){return list.map(x=>`<option value="${esc(x[0])}" ${x[0]===sel?"selected":""}>${esc(x[1])}</option>`).join("")}
 function renderDay(){const k=modal.date,D=calData(),es=D.map[k]||[],m=main(),b=D.eod[k];
