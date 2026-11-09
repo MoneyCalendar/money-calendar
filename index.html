@@ -22,9 +22,9 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 #upd button{background:var(--bg);color:var(--ink);border:0}
 .chart{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px}
 table.t{width:100%;border-collapse:collapse;font-size:13px}table.t th,table.t td{padding:6px 4px;text-align:right;border-bottom:1px solid var(--line)}table.t th:first-child,table.t td:first-child{text-align:left}
-button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:8px 12px;cursor:pointer}
+button{border:1px solid var(--acc);background:var(--card);background:color-mix(in srgb,var(--acc) 16%,var(--card));color:var(--acc);font-weight:600;border-radius:8px;padding:8px 12px;cursor:pointer}
 button.pri{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:600}
-button.del{color:var(--ri)}
+button.del{border-color:var(--ri);color:var(--ri);background:var(--card);background:color-mix(in srgb,var(--ri) 14%,var(--card))}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 .hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
 .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
@@ -34,7 +34,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}.stats3 .st{padding:6px 8px}.stats3 .st small{font-size:11px;line-height:1.25}.stats3 .st b{font-size:15px}
 .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
 .dow{font-size:12px;color:var(--mute);text-align:center;padding:2px 0}
-.day{min-height:62px;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:4px;text-align:left;display:flex;flex-direction:column;justify-content:space-between;gap:2px}
+.day{color:var(--ink);font-weight:400;min-height:62px;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:4px;text-align:left;display:flex;flex-direction:column;justify-content:space-between;gap:2px}
 .day.g{background:var(--g);color:var(--gi)}.day.y{background:var(--y);color:var(--yi)}.day.r{background:var(--r);color:var(--ri)}
 .day.today{outline:2px solid var(--acc)}.day.blank{visibility:hidden}
 .day .n{font-weight:700;font-size:14px}.day .b{font-size:11px;font-weight:600}
@@ -65,7 +65,7 @@ textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8
 <nav><button id="t-cal" data-act="tab" data-t="cal">Calendar</button><button id="t-an" data-act="tab" data-t="an">Analytics</button><button id="t-set" data-act="tab" data-t="set">Settings</button></nav>
 <div id="modal"></div>
 <script>
-const K="moneycal1",APPV="0.8",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
+const K="moneycal1",APPV="0.8.1",P=n=>String(n).padStart(2,"0"),ds=(y,m,d)=>y+"-"+P(m+1)+"-"+P(d);
 const parse=s=>{const a=s.split("-");return[+a[0],+a[1]-1,+a[2]]};
 const toD=s=>{const[a,b,c]=parse(s);return new Date(Date.UTC(a,b,c))};
 const fromD=d=>ds(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
@@ -108,7 +108,7 @@ function safe(){const s=sim();if(!s)return null;const p=all().find(e=>e.id==="_p
  if(!end)end=s[Math.min(13,s.length-1)][0];if(end<TODAY)end=TODAY;
  return{amt:Math.min(...s.filter(x=>x[0]<=end).map(x=>x[1]))-(+S.cushion||0),pay}}
 function safeCard(){const s=safe();if(!s)return"";const n=s.amt;return `<div class="st" style="margin-bottom:10px"><small>Safe to spend until ${s.pay?"payday ("+nice(s.pay)+")":"the next two weeks"}</small><b class="amt-${n<0?"ex":"in"}">${n<0?"Short by "+fm(-n):fm(n)}</b><small>The most you could spend today and still stay ${+S.cushion>0?"above your cushion":"out of the red"}.</small></div>`}
-function checker(){return `<div class="chart"><b>Can I afford it?</b><div class="f"><div><label for="c-amt">Purchase amount</label><input id="c-amt" type="number" inputmode="decimal" step="0.01" min="0"></div><div><label for="c-date">On date</label><input id="c-date" type="date" value="${TODAY}" min="${TODAY}"></div></div><div class="hd" style="margin-top:8px"><button data-act="chk">Check it</button></div><div id="c-out"></div></div>`}
+function checker(){return `<div class="chart"><b>Can I afford it?</b><div class="f"><div><label for="c-amt">Purchase amount</label><input id="c-amt" type="number" inputmode="decimal" step="0.01" min="0"></div><div><label for="c-date">On date</label><input id="c-date" type="date" value="${TODAY}" min="${TODAY}"></div></div><div class="hd" style="margin-top:8px"><button class="pri" data-act="chk">Check it</button></div><div id="c-out"></div></div>`}
 function lastPay(){const p=all().find(e=>e.id==="_pay");if(!p)return null;const o=occ(p,addDays(TODAY,-45),TODAY);return o.length?o[o.length-1]:null}
 function checkCard(){const P=lastPay();if(!P||(S.lastCheck||"")>=P||!main())return"";return `<div class="okb" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${P===TODAY?"It’s payday.":"Payday was "+nice(P)+"."} Time for a quick check-in.</span><button class="pri" data-act="check">Start</button></div>`}
 function renderCheck(){const m=main();if(!m)return'<div class="hd"><h1>Payday check-in</h1><button data-act="close">Close</button></div><p class="note">Add your Main account in Settings first.</p>';
@@ -132,7 +132,7 @@ function renderCal(){const D=calData(),dow=toD(D.first).getUTCDay(),n=dim(vy,vm)
  else{const end=D.eod[D.last],td=D.eod[TODAY],sf=safe(),ow=owed(),f=ahead();
    h+=checkCard();if(f)h+=`<div class="warn">Short by ${fm(-f.b)} on ${nice(f.d)}. Cover it before then so you don’t need an advance.</div>`;
    h+=`<div class="stats3"><div class="st"><small>Today</small><b class="${td<0?"amt-ex":""}">${td===undefined?"–":fm(td)}</b>${td!==undefined&&ow>0?"<small>After apps: "+fm(td-ow)+"</small>":""}</div><div class="st"><small>Safe to spend</small><b class="${sf&&sf.amt<0?"amt-ex":"amt-in"}">${sf?fm(sf.amt):"–"}</b><small>${sf&&sf.pay?"until "+nice(sf.pay):"next 2 weeks"}</small></div><div class="st"><small>End of month</small><b class="amt-${end<0?"ex":"in"}">${end===undefined?"–":fm(end)}</b>${end!==undefined&&owedAt(D.last)?"<small>After apps: "+fm(end-owedAt(D.last))+"</small>":""}</div></div>`;
-   var det=`<h2>Month details</h2><div class="row"><div>Lowest point<small>${lowD?nice(lowD):""}</small></div><b>${low===null?"–":fm(low)}</b></div><div class="row"><div>Owed to apps<small>Unpaid advances and pay-later payments</small></div><b class="${ow>0?"amt-ex":""}">${fm(ow)}</b></div><div class="hd"><button data-act="check">Update balance and plan the pay period</button></div><p class="note">Safe to spend is the most you could spend today and still stay ${+S.cushion>0?"above your cushion":"out of the red"} until your next payday.</p>`+checker()}
+   var det=`<h2>Month details</h2><div class="row"><div>Lowest point<small>${lowD?nice(lowD):""}</small></div><b>${low===null?"–":fm(low)}</b></div><div class="row"><div>Owed to apps<small>Unpaid advances and pay-later payments</small></div><b class="${ow>0?"amt-ex":""}">${fm(ow)}</b></div><p class="note">Safe to spend is the most you could spend today and still stay ${+S.cushion>0?"above your cushion":"out of the red"} until your next payday.</p>`+checker()}
  h+=`<div class="grid">`+["S","M","T","W","T","F","S"].map(x=>`<div class="dow">${x}</div>`).join("");
  for(let i=0;i<dow;i++)h+=`<div class="day blank"></div>`;
  for(let d=1;d<=n;d++){const k=ds(vy,vm,d),es=D.map[k]||[],b=D.eod[k],m=main();
@@ -167,7 +167,7 @@ function applyType(){const t=document.getElementById("f-type");if(!t)return;cons
 function closeModal(){modal=null;document.getElementById("modal").classList.remove("open")}
 function renderSet(){let h=`<h1>Settings</h1><h2>Accounts</h2><p class="note">Mark one account as Main. Only the Main account drives the calendar colors; credit cards count as debt.</p>`;
  h+=S.accounts.map((a,i)=>`<div class="acc"><div><label>Name</label><input data-a="${i}" data-f="name" value="${esc(a.name)}"></div><div><label>Role</label><select data-a="${i}" data-f="role">${opts(ROLES.map(r=>[r,r]),a.role)}</select></div><div><label>Balance</label><input data-a="${i}" data-f="balance" type="number" inputmode="decimal" step="0.01" value="${a.balance}"></div><div><label>Balance as of (end of that day)</label><input data-a="${i}" data-f="asof" type="date" value="${a.asof||""}"></div><div><button class="del" data-act="delAcct" data-i="${i}">Remove account</button></div></div>`).join("");
- h+=`<button data-act="addAcct">Add account</button><h2>Paycheck</h2><div class="acc set"><div><label>How often</label><select data-k="pay.freq">${opts(Object.entries(REP).filter(x=>x[0]!=="none"),S.pay.freq)}</select></div><div><label>Amount</label><input data-k="pay.amount" type="number" inputmode="decimal" step="0.01" value="${S.pay.amount}"></div><div><label>Next payday</label><input data-k="pay.next" type="date" value="${S.pay.next}"></div><div class="note">Goes into the Main account on each payday.</div></div>
+ h+=`<button data-act="addAcct">Add account</button><h2>Balance check-in</h2><p class="note">Match the calendar to your bank. Enter your real Main account balance, then see what is due before your next payday.</p><button class="pri" data-act="check">Update balance and plan the pay period</button><h2>Paycheck</h2><div class="acc set"><div><label>How often</label><select data-k="pay.freq">${opts(Object.entries(REP).filter(x=>x[0]!=="none"),S.pay.freq)}</select></div><div><label>Amount</label><input data-k="pay.amount" type="number" inputmode="decimal" step="0.01" value="${S.pay.amount}"></div><div><label>Next payday</label><input data-k="pay.next" type="date" value="${S.pay.next}"></div><div class="note">Goes into the Main account on each payday.</div></div>
  <h2>Safety cushion</h2><div class="acc set"><div><label>Turn days yellow below</label><input data-k="cushion" type="number" inputmode="decimal" step="1" value="${S.cushion}"></div><div class="note">Zero means a day only turns red when it goes negative.</div></div>
  <h2>Categories</h2><div class="chips">${S.cats.map((c,i)=>`<span class="chip">${esc(c)}<button data-act="delCat" data-i="${i}" aria-label="Remove ${esc(c)}">×</button></span>`).join("")}</div><div class="f"><input id="newcat" placeholder="New category"><button data-act="addCat">Add category</button></div>
  <h2>Backup</h2><p class="note">Data lives in this browser only. Copy it somewhere safe, or paste a backup to restore.</p><textarea id="bk" aria-label="Backup data"></textarea><div class="hd"><button data-act="exp">Show backup</button><button data-act="imp">Restore from text</button></div><p class="msg" id="bkm"></p><p class="note">App version ${APPV}</p>`;
